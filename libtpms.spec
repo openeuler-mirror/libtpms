@@ -1,8 +1,12 @@
 # --- libtpm rpm-spec ---
+%global gitdate     20200710
+%global gitcommit   1d392d466a14234b2c0751ed6c22491836691166
+%global gitshortcommit  %(c=%{gitcommit}; echo ${c:0:7})
+
 
 %define name      libtpms
 %define version   0.7.3
-%define release   2
+%define release   3
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,7 +23,7 @@ Release:        2
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
-Source0:        %{url}/archive/%{name}-%{version}.tar.gz
+Source0:        %{url}/archive/%{gitcommit}/%{name}-%{gitshortcommit}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
 
 %if "%{crypto_subsystem}" == "openssl"
@@ -70,7 +74,7 @@ Libtpms header files and documentation.
 %attr(644, root, root) %{_mandir}/man3/*
 
 %prep
-%setup -q
+%autosetup -n %{name}-%{gitcommit}
 
 %build
 
@@ -113,7 +117,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 
 %changelog
 * Mon Sep 14 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-2
-- update source0
+- update spec file including source0 and update source file 
 
 * Fri Aug 21 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-1
 - Package init

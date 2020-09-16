@@ -19,7 +19,7 @@
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
 Version:        %{version}
-Release:        %{release}%{?dist}
+Release:        %{release}
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms

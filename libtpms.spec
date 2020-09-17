@@ -5,7 +5,7 @@
 
 
 %define name      libtpms
-%define version   0.7.3
+%define versionx   0.7.3
 %define release   2
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
@@ -18,7 +18,7 @@
 
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
-Version:        %{version}
+Version:        %{versionx}
 Release:        2
 License:        BSD
 Group:          Development/Libraries

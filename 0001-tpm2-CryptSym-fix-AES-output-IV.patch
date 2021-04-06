@@ -1,0 +1,85 @@
+From 8a1716c3bb18bac169f68d24cdd095cf617eb908 Mon Sep 17 00:00:00 2001
+From: root <root@localhost.localdomain>
+Date: Tue, 6 Apr 2021 16:22:04 +0800
+Subject: [PATCH] tpm2: CryptSym: fix AES output IV The TPM is supposed to
+ provide the output IV in the ivInOut parameter in CryptSymmetricEncrypt. In
+ the case of using the openssl routines, the output IV is missed, and the
+ resulting output from the TPM is in the input IV.
+
+OpenSSL unfortunately does not export EVP_CIPHER_CTX_iv() until
+tags/OpenSSL_1_1_0, so we have to fall back to the reference code for
+previous OpenSSL versions.
+
+Signed-off-by: William Roberts <william.c.roberts@intel.com>
+Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>
+---
+ configure.ac                       |  1 +
+ src/tpm2/crypto/openssl/CryptSym.c | 19 +++++++++++++++++++
+ 2 files changed, 20 insertions(+)
+
+diff --git a/configure.ac b/configure.ac
+index 1bb45d1..0c57ef3 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -165,6 +165,7 @@ AS_IF([test "x$enable_use_openssl_functions" != "xno"], [
+ 	AC_CHECK_LIB([crypto], [EVP_aes_128_cbc],, not_found=1)
+ 	AC_CHECK_LIB([crypto], [EVP_des_ede3_cbc],, not_found=1)
+ 	AC_CHECK_LIB([crypto], [DES_random_key],, not_found=1)
++	AC_CHECK_LIB([crypto], [EVP_CIPHER_CTX_iv],, not_found=1)
+ 	if test "x$not_found" = "x0"; then
+ 		use_openssl_functions_symmetric=1
+ 		use_openssl_functions_for="symmetric (AES, TDES) "
+diff --git a/src/tpm2/crypto/openssl/CryptSym.c b/src/tpm2/crypto/openssl/CryptSym.c
+index 7aa90da..856def6 100644
+--- a/src/tpm2/crypto/openssl/CryptSym.c
++++ b/src/tpm2/crypto/openssl/CryptSym.c
+@@ -531,6 +531,7 @@ CryptSymmetricEncrypt(
+     BYTE                 keyToUse[MAX_SYM_KEY_BYTES];
+     UINT16               keyToUseLen = (UINT16)sizeof(keyToUse);
+     TPM_RC               retVal = TPM_RC_SUCCESS;
++    int                  ivLen;
+ 
+     pAssert(dOut != NULL && key != NULL && dIn != NULL);
+     if(dSize == 0)
+@@ -595,6 +596,14 @@ CryptSymmetricEncrypt(
+     if (EVP_EncryptFinal_ex(ctx, pOut + outlen1, &outlen2) != 1)
+         ERROR_RETURN(TPM_RC_FAILURE);
+ 
++    if (ivInOut) {
++        ivLen = EVP_CIPHER_CTX_iv_length(ctx);
++        if (ivLen < 0 || (size_t)ivLen > sizeof(ivInOut->t.buffer))
++            ERROR_RETURN(TPM_RC_FAILURE);
++
++        ivInOut->t.size = ivLen;
++        memcpy(ivInOut->t.buffer, EVP_CIPHER_CTX_iv(ctx), ivInOut->t.size);
++    }
+  Exit:
+     if (retVal == TPM_RC_SUCCESS && pOut != dOut)
+         memcpy(dOut, pOut, outlen1 + outlen2);
+@@ -636,6 +645,7 @@ CryptSymmetricDecrypt(
+     BYTE                 keyToUse[MAX_SYM_KEY_BYTES];
+     UINT16               keyToUseLen = (UINT16)sizeof(keyToUse);
+     TPM_RC               retVal = TPM_RC_SUCCESS;
++    int                  ivLen;
+ 
+     // These are used but the compiler can't tell because they are initialized
+     // in case statements and it can't tell if they are always initialized
+@@ -707,6 +717,15 @@ CryptSymmetricDecrypt(
+ 
+     pAssert((int)buffersize >= outlen1 + outlen2);
+ 
++    if (ivInOut) {
++        ivLen = EVP_CIPHER_CTX_iv_length(ctx);
++        if (ivLen < 0 || (size_t)ivLen > sizeof(ivInOut->t.buffer))
++            ERROR_RETURN(TPM_RC_FAILURE);
++
++        ivInOut->t.size = ivLen;
++        memcpy(ivInOut->t.buffer, EVP_CIPHER_CTX_iv(ctx), ivInOut->t.size);
++    }
++
+  Exit:
+     if (retVal == TPM_RC_SUCCESS) {
+         pAssert(dSize >= outlen1 + outlen2);
+-- 
+2.27.0
+

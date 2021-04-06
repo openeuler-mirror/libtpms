@@ -5,8 +5,8 @@
 
 
 %define name      libtpms
-%define versionx   0.7.3
-%define release   2
+%define versionx  0.7.3
+%define release   3
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,12 +19,14 @@
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
 Version:        %{versionx}
-Release:        2
+Release:        3
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
 Source0:        %{url}/archive/%{gitcommit}/%{name}-%{gitshortcommit}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
+
+Patch0: 0001-tpm2-CryptSym-fix-AES-output-IV.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel
@@ -116,6 +118,12 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Mon Apr 5 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-3
+- Type:CVE
+- ID:NA
+- SUG:NA
+- DESC: fix CVE-2021-3446
+
 * Mon Sep 14 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-2
 - update spec file including source0 and update source file 
 

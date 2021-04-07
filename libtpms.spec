@@ -76,7 +76,8 @@ Libtpms header files and documentation.
 %attr(644, root, root) %{_mandir}/man3/*
 
 %prep
-%autosetup -n %{name}-%{gitcommit}
+%setup -n %{name}-%{gitcommit}
+%autopatch -p1
 
 %build
 

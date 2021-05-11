@@ -1,0 +1,143 @@
+From 8b534099d59ec5e746802dd77680612539945324 Mon Sep 17 00:00:00 2001
+From: jiangfangjie 00559066 <jiangfangjie@huawei.com>
+Date: Tue, 11 May 2021 11:32:08 +0800
+Subject: [PATCH 3/7] tpm2: Add SEED_COMPAT_LEVEL to DRBG state
+
+Add a SEED_COMPAT_LEVEL to the DRBG state that is associated with the seed
+and indicates the seed compatibility level we need to maintain when deriving
+RSA keys from seeds. We only need to be able to handle RSA keys derived via
+the DRBG state. Other keys, such as symmetric keys, are not affected. Also
+RSA keys cannot be derived from a KDR, so the KDF does not need to carry
+the SEED_COMPAT_LEVEL.
+
+All functions that need to pass a value set SEED_COMPAT_LEVEL to
+SEED_COMPAT_LEVEL_ORIGINAL (0) for now.
+---
+ src/tpm2/HierarchyCommands.c        |  3 ++-
+ src/tpm2/ObjectCommands.c           |  3 ++-
+ src/tpm2/crypto/CryptRand.h         |  1 +
+ src/tpm2/crypto/CryptRand_fp.h      |  9 ++++++++-
+ src/tpm2/crypto/openssl/CryptRand.c | 26 +++++++++++++++++++++++++-
+ 5 files changed, 38 insertions(+), 4 deletions(-)
+
+diff --git a/src/tpm2/HierarchyCommands.c b/src/tpm2/HierarchyCommands.c
+index 776d2e2..e757191 100644
+--- a/src/tpm2/HierarchyCommands.c
++++ b/src/tpm2/HierarchyCommands.c
+@@ -103,7 +103,8 @@ TPM2_CreatePrimary(
+ 			   &HierarchyGetPrimarySeed(in->primaryHandle)->b,
+ 			   PRIMARY_OBJECT_CREATION,
+ 			   (TPM2B *)PublicMarshalAndComputeName(publicArea, &name),
+-			   &in->inSensitive.sensitive.data.b);
++			   &in->inSensitive.sensitive.data.b,
++         HierarchyGetPrimarySeedCompatLevel(in->primaryHandle)); // libtpms added
+     newObject->attributes.primary = SET;
+     if(in->primaryHandle == TPM_RH_ENDORSEMENT)
+ 	newObject->attributes.epsHierarchy = SET;
+diff --git a/src/tpm2/ObjectCommands.c b/src/tpm2/ObjectCommands.c
+index 590a702..26919eb 100644
+--- a/src/tpm2/ObjectCommands.c
++++ b/src/tpm2/ObjectCommands.c
+@@ -508,7 +508,8 @@ TPM2_CreateLoaded(
+ 					   PRIMARY_OBJECT_CREATION,
+ 					   (TPM2B *)PublicMarshalAndComputeName(publicArea,
+ 										&name),
+-					   &in->inSensitive.sensitive.data.b);
++					   &in->inSensitive.sensitive.data.b,
++                       HierarchyGetPrimarySeedCompatLevel(in->parentHandle)); // libtpms added
+ 	        }
+ 	    else
+ 		// This is an ordinary object so use the normal random number generator
+diff --git a/src/tpm2/crypto/CryptRand.h b/src/tpm2/crypto/CryptRand.h
+index 3eaf986..c3947aa 100644
+--- a/src/tpm2/crypto/CryptRand.h
++++ b/src/tpm2/crypto/CryptRand.h
+@@ -138,6 +138,7 @@ typedef union
+ 	UINT64      reseedCounter;
+ 	UINT32      magic;
+ 	DRBG_SEED   seed; // contains the key and IV for the counter mode DRBG
++	SEED_COMPAT_LEVEL seedCompatLevel;   // libtpms added: the compatibility level for keeping backwards compatibility
+ 	UINT32      lastValue[4];   // used when the TPM does continuous self-test
+ 	// for FIPS compliance of DRBG
+     } DRBG_STATE, *pDRBG_STATE;
+diff --git a/src/tpm2/crypto/CryptRand_fp.h b/src/tpm2/crypto/CryptRand_fp.h
+index b10ee3d..9bf9209 100644
+--- a/src/tpm2/crypto/CryptRand_fp.h
++++ b/src/tpm2/crypto/CryptRand_fp.h
+@@ -127,7 +127,8 @@ DRBG_InstantiateSeeded(
+ 		       const TPM2B     *seed,          // IN: the seed to use
+ 		       const TPM2B     *purpose,       // IN: a label for the generation process.
+ 		       const TPM2B     *name,          // IN: name of the object
+-		       const TPM2B     *additional     // IN: additional data
++		       const TPM2B     *additional,    // IN: additional data
++		       SEED_COMPAT_LEVEL seedCompatLevel// IN: compatibility level (associated with seed); libtpms added
+ 		       );
+ LIB_EXPORT BOOL
+ CryptRandStartup(
+@@ -143,6 +144,12 @@ DRBG_Generate(
+ 	      BYTE            *random,        // OUT: buffer to receive the random values
+ 	      UINT16           randomSize     // IN: the number of bytes to generate
+ 	      );
++// libtpms added begin
++LIB_EXPORT SEED_COMPAT_LEVEL
++DRBG_GetSeedCompatLevel(
++               RAND_STATE     *state          // IN
++              );
++// libtpms added end
+ LIB_EXPORT BOOL
+ DRBG_Instantiate(
+ 		 DRBG_STATE      *drbgState,         // OUT: the instantiated value
+diff --git a/src/tpm2/crypto/openssl/CryptRand.c b/src/tpm2/crypto/openssl/CryptRand.c
+index 118e1c9..e5bca22 100644
+--- a/src/tpm2/crypto/openssl/CryptRand.c
++++ b/src/tpm2/crypto/openssl/CryptRand.c
+@@ -589,7 +589,8 @@ DRBG_InstantiateSeeded(
+ 		       const TPM2B     *seed,          // IN: the seed to use
+ 		       const TPM2B     *purpose,       // IN: a label for the generation process.
+ 		       const TPM2B     *name,          // IN: name of the object
+-		       const TPM2B     *additional     // IN: additional data
++		       const TPM2B     *additional,    // IN: additional data
++		       SEED_COMPAT_LEVEL seedCompatLevel // IN: compatibility level; libtpms added
+ 		       )
+ {
+     DF_STATE         dfState;
+@@ -600,6 +601,7 @@ DRBG_InstantiateSeeded(
+     // Initialize the DRBG state
+     memset(drbgState, 0, sizeof(DRBG_STATE));
+     drbgState->magic = DRBG_MAGIC;
++    drbgState->seedCompatLevel = seedCompatLevel; // libtpms added
+     // Size all of the values
+     totalInputSize = (seed != NULL) ? seed->size : 0;
+     totalInputSize += (purpose != NULL) ? purpose->size : 0;
+@@ -655,6 +657,28 @@ CryptRandInit(
+ #endif
+     return DRBG_SelfTest();
+ }
++// libtpms added begin
++LIB_EXPORT SEED_COMPAT_LEVEL
++DRBG_GetSeedCompatLevel(
++               RAND_STATE     *state
++             )
++{
++    if(state == NULL)
++        {
++           return SEED_COMPAT_LEVEL_LAST;
++       }
++    else if(state->drbg.magic == DRBG_MAGIC)
++       {
++           DRBG_STATE          *drbgState = (DRBG_STATE *)state;
++
++           return drbgState->seedCompatLevel;
++       }
++    else
++       {
++           return SEED_COMPAT_LEVEL_LAST;
++       }
++}// libtpms added end
++
+ /* 10.2.18.5 DRBG_Generate() */
+ /* This function generates a random sequence according SP800-90A. If random is not NULL, then
+    randomSize bytes of random values are generated. If random is NULL or randomSize is zero, then
+-- 
+2.21.0.windows.1
+

@@ -1,0 +1,110 @@
+From 6617eecb7ea815974a1cfc19f60a091f64c7ba30 Mon Sep 17 00:00:00 2001
+From: jiangfangjie 00559066 <jiangfangjie@huawei.com>
+Date: Tue, 11 May 2021 10:34:49 +0800
+Subject: [PATCH 2/7] tpm2: Add SEED_COMPAT_LEVEL to nullSeed to track
+ compatibility level
+
+Add SEED_COMPAT_LEVEL to the nullSeed in the state_reset data to track
+its compatibility level. We need it for VM suspend and resume.
+---
+ src/tpm2/Global.h    |  1 +
+ src/tpm2/Hierarchy.c |  3 ++-
+ src/tpm2/NVMarshal.c | 21 ++++++++++++++++++---
+ 3 files changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/src/tpm2/Global.h b/src/tpm2/Global.h
+index 011aff8..3448de3 100644
+--- a/src/tpm2/Global.h
++++ b/src/tpm2/Global.h
+@@ -809,6 +809,7 @@ typedef struct state_reset_data
+     // the TPM_RH_NULL hierarchy. The
+     // default reset value is from the RNG.
+     TPM2B_SEED          nullSeed;           // The seed value for the TPM_RN_NULL
++    SEED_COMPAT_LEVEL   nullSeedCompatLevel; // libtpms added
+     // hierarchy. The default reset value
+     // is from the RNG.
+     //*****************************************************************************
+diff --git a/src/tpm2/Hierarchy.c b/src/tpm2/Hierarchy.c
+index 70a3588..e9e6d6d 100644
+--- a/src/tpm2/Hierarchy.c
++++ b/src/tpm2/Hierarchy.c
+@@ -154,6 +154,7 @@ HierarchyStartup(
+ 	    CryptRandomGenerate(gr.nullProof.t.size, gr.nullProof.t.buffer);
+ 	    gr.nullSeed.t.size = sizeof(gr.nullSeed.t.buffer);
+ 	    CryptRandomGenerate(gr.nullSeed.t.size, gr.nullSeed.t.buffer);
++	    gr.nullSeedCompatLevel = SEED_COMPAT_LEVEL_LAST;  // libtpms added
+ 	}
+     return;
+ }
+@@ -235,7 +236,7 @@ HierarchyGetPrimarySeedCompatLevel(
+ 	    return gp.EPSeedCompatLevel;
+ 	    break;
+ 	  case TPM_RH_NULL:
+-	    return SEED_COMPAT_LEVEL_LAST;
++	    return gr.nullSeedCompatLevel;
+ 	  default:
+ 	    FAIL(FATAL_ERROR_INTERNAL);
+ 	    break;
+diff --git a/src/tpm2/NVMarshal.c b/src/tpm2/NVMarshal.c
+index 653ef1a..5c1955b 100644
+--- a/src/tpm2/NVMarshal.c
++++ b/src/tpm2/NVMarshal.c
+@@ -1235,7 +1235,7 @@ skip_future_versions:
+ }
+ 
+ #define STATE_RESET_DATA_MAGIC  0x01102332
+-#define STATE_RESET_DATA_VERSION 2
++#define STATE_RESET_DATA_VERSION 3
+ 
+ TPM_RC
+ STATE_RESET_DATA_Unmarshal(STATE_RESET_DATA *data, BYTE **buffer, INT32 *size)
+@@ -1326,11 +1326,21 @@ STATE_RESET_DATA_Unmarshal(STATE_RESET_DATA *data, BYTE **buffer, INT32 *size)
+ #endif
+ skip_alg_ecc:
+ 
++    /* default values before conditional block */
++    data->nullSeedCompatLevel = SEED_COMPAT_LEVEL_ORIGINAL;
++
+     /* version 2 starts having indicator for next versions that we can skip;
+        this allows us to downgrade state */
+     if (rc == TPM_RC_SUCCESS && hdr.version >= 2) {
+-        BLOCK_SKIP_READ(skip_future_versions, FALSE, buffer, size,
++        BLOCK_SKIP_READ(skip_future_versions, hdr.version >= 3, buffer, size,
+                         "STATE_RESET_DATA", "version 3 or later");
++        if (rc == TPM_RC_SUCCESS) {
++            rc = SEED_COMPAT_LEVEL_Unmarshal(&gr.nullSeedCompatLevel,
++                                             buffer, size, "nullSeed");
++        }
++
++        BLOCK_SKIP_READ(skip_future_versions, FALSE, buffer, size,
++                        "STATE_RESET_DATA", "version 4 or later");
+         /* future versions nest-append here */
+     }
+ 
+@@ -1349,7 +1359,7 @@ STATE_RESET_DATA_Marshal(STATE_RESET_DATA *data, BYTE **buffer, INT32 *size)
+ 
+     written = NV_HEADER_Marshal(buffer, size,
+                                 STATE_RESET_DATA_VERSION,
+-                                STATE_RESET_DATA_MAGIC, 1);
++                                STATE_RESET_DATA_MAGIC, 3);
+     written += TPM2B_PROOF_Marshal(&data->nullProof, buffer, size);
+     written += TPM2B_Marshal(&data->nullSeed.b, buffer, size);
+     written += UINT32_Marshal(&data->clearCount, buffer, size);
+@@ -1383,9 +1393,14 @@ STATE_RESET_DATA_Marshal(STATE_RESET_DATA *data, BYTE **buffer, INT32 *size)
+ #endif
+     BLOCK_SKIP_WRITE_POP(size);
+ 
++    written += BLOCK_SKIP_WRITE_PUSH(TRUE, buffer, size);
++    written += SEED_COMPAT_LEVEL_Marshal(&data->nullSeedCompatLevel,
++                                         buffer, size);
++
+     written += BLOCK_SKIP_WRITE_PUSH(TRUE, buffer, size);
+     /* future versions append below this line */
+ 
++    BLOCK_SKIP_WRITE_POP(size);
+     BLOCK_SKIP_WRITE_POP(size);
+ 
+     BLOCK_SKIP_WRITE_CHECK;
+-- 
+2.21.0.windows.1
+

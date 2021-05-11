@@ -6,7 +6,7 @@
 
 %define name      libtpms
 %define versionx  0.7.3
-%define release   3
+%define release   4
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,7 +19,7 @@
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
 Version:        %{versionx}
-Release:        3
+Release:        4
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
@@ -126,7 +126,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
-* Thu May 11 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-4
+* Tue May 11 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-4
 -TYPE: CVE
 -ID:NA
 -SUG:NA

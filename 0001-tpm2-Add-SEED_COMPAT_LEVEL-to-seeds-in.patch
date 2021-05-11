@@ -1,0 +1,346 @@
+From 2833825447cbc0b23c1aa13a15521aa1d0ec0175 Mon Sep 17 00:00:00 2001
+From: jiangfangjie 00559066 <jiangfangjie@huawei.com>
+Date: Tue, 11 May 2021 10:32:16 +0800
+Subject: [PATCH 1/7] tpm2: Add SEED_COMPAT_LEVEL to seeds in  PERSISTENT_DATA
+
+Add a variable seedCompatLevel to the each seed in the PERSISTENT_DATA
+that allows us to track the age of the seed. Whenever a new seed
+is created the seedCompatLevel is also written and set to the latest
+version. This seedCompatLevel then influences the crypto algorithm that
+can be used for deriving keys so that previously derived keys
+are now still generated in the same way. When the seed is changed
+the old keys are all useless and newly derived keys can then use
+the new algorithm.
+
+This patch only sets the variables to the current compatibility
+level SEED_COMPAT_LEVEL_ORIGINAL and writes it out as part of the state
+file. This makes the state file not downgradeable.
+---
+ src/Makefile.am                   |  1 +
+ src/tpm2/BackwardsCompatibility.h | 48 +++++++++++++++++++++++++
+ src/tpm2/Global.h                 |  5 +++
+ src/tpm2/Hierarchy.c              | 31 ++++++++++++++++
+ src/tpm2/HierarchyCommands.c      |  5 +++
+ src/tpm2/Hierarchy_fp.h           |  6 ++++
+ src/tpm2/NVMarshal.c              | 59 +++++++++++++++++++++++++++++--
+ 7 files changed, 152 insertions(+), 3 deletions(-)
+ create mode 100644 src/tpm2/BackwardsCompatibility.h
+
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 670afbf..e18ba4d 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -482,6 +482,7 @@ noinst_HEADERS += \
+ 	tpm2/VerifySignature_fp.h \
+ 	tpm2/ZGen_2Phase_fp.h \
+ 	\
++	tpm2/BackwardsCompatibility.h \
+ 	tpm2/LibtpmsCallbacks.h \
+ 	tpm2/NVMarshal.h \
+ 	tpm2/StateMarshal.h \
+diff --git a/src/tpm2/BackwardsCompatibility.h b/src/tpm2/BackwardsCompatibility.h
+new file mode 100644
+index 0000000..aa79763
+--- /dev/null
++++ b/src/tpm2/BackwardsCompatibility.h
+@@ -0,0 +1,48 @@
++/********************************************************************************/
++/*										*/
++/*			Backwards compatibility related stuff			*/
++/*			     Written by Stefan Berger				*/
++/*		       IBM Thomas J. Watson Research Center			*/
++/*										*/
++/* (c) Copyright IBM Corporation 2017,2018.					*/
++/*										*/
++/* All rights reserved.								*/
++/* 										*/
++/* Redistribution and use in source and binary forms, with or without		*/
++/* modification, are permitted provided that the following conditions are	*/
++/* met:										*/
++/* 										*/
++/* Redistributions of source code must retain the above copyright notice,	*/
++/* this list of conditions and the following disclaimer.			*/
++/* 										*/
++/* Redistributions in binary form must reproduce the above copyright		*/
++/* notice, this list of conditions and the following disclaimer in the		*/
++/* documentation and/or other materials provided with the distribution.		*/
++/* 										*/
++/* Neither the names of the IBM Corporation nor the names of its		*/
++/* contributors may be used to endorse or promote products derived from		*/
++/* this software without specific prior written permission.			*/
++/* 										*/
++/* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS		*/
++/* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT		*/
++/* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR	*/
++/* A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT		*/
++/* HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,	*/
++/* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT		*/
++/* LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,	*/
++/* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY	*/
++/* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT		*/
++/* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE	*/
++/* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
++/********************************************************************************/
++
++#ifndef BACKWARDS_COMPATIBILITY_H
++#define BACKWARDS_COMPATIBILITY_H
++
++typedef UINT8 SEED_COMPAT_LEVEL;
++enum {
++    SEED_COMPAT_LEVEL_ORIGINAL = 0,   /* original TPM 2 code up to rev155 */
++    SEED_COMPAT_LEVEL_LAST = SEED_COMPAT_LEVEL_ORIGINAL
++};
++
++#endif /* BACKWARDS_COMPATIBILITY_H */
+diff --git a/src/tpm2/Global.h b/src/tpm2/Global.h
+index 7a215cb..011aff8 100644
+--- a/src/tpm2/Global.h
++++ b/src/tpm2/Global.h
+@@ -76,6 +76,7 @@ _NORMAL_WARNING_LEVEL_
+ #undef CONTEXT_SLOT
+ #  define CONTEXT_SLOT    UINT8
+ #endif
++#include "BackwardsCompatibility.h" // libtpms added
+ #include "Capabilities.h"
+ #include "TpmTypes.h"
+ #include "CommandAttributes.h"
+@@ -619,6 +620,10 @@ typedef struct
+     TPM2B_SEED          EPSeed;
+     TPM2B_SEED          SPSeed;
+     TPM2B_SEED          PPSeed;
++    // SEED_COMPAT_LEVELs related to creation time of seeds
++    SEED_COMPAT_LEVEL   EPSeedCompatLevel; // libtpms added begin
++    SEED_COMPAT_LEVEL   SPSeedCompatLevel;
++    SEED_COMPAT_LEVEL   PPSeedCompatLevel; // libtpms added end
+     // Note there is a nullSeed in the state_reset memory.
+     // Hierarchy proofs
+     TPM2B_PROOF          phProof;
+diff --git a/src/tpm2/Hierarchy.c b/src/tpm2/Hierarchy.c
+index 798c037..70a3588 100644
+--- a/src/tpm2/Hierarchy.c
++++ b/src/tpm2/Hierarchy.c
+@@ -86,6 +86,9 @@ HierarchyPreInstall_Init(
+ #endif
+     CryptRandomGenerate(gp.SPSeed.t.size, gp.SPSeed.t.buffer);
+     CryptRandomGenerate(gp.PPSeed.t.size, gp.PPSeed.t.buffer);
++    gp.EPSeedCompatLevel = SEED_COMPAT_LEVEL_LAST;   // libtpms added begin
++    gp.SPSeedCompatLevel = SEED_COMPAT_LEVEL_LAST;
++    gp.PPSeedCompatLevel = SEED_COMPAT_LEVEL_LAST;   // libtpms added end
+     // Initialize owner, endorsement and lockout authorization
+     gp.ownerAuth.t.size = 0;
+     gp.endorsementAuth.t.size = 0;
+@@ -109,6 +112,9 @@ HierarchyPreInstall_Init(
+     NV_SYNC_PERSISTENT(EPSeed);
+     NV_SYNC_PERSISTENT(SPSeed);
+     NV_SYNC_PERSISTENT(PPSeed);
++    NV_SYNC_PERSISTENT(EPSeedCompatLevel);  // libtpms added begin
++    NV_SYNC_PERSISTENT(SPSeedCompatLevel);
++    NV_SYNC_PERSISTENT(PPSeedCompatLevel);  // libtpms added end
+     NV_SYNC_PERSISTENT(ownerAuth);
+     NV_SYNC_PERSISTENT(endorsementAuth);
+     NV_SYNC_PERSISTENT(lockoutAuth);
+@@ -211,6 +217,31 @@ HierarchyGetPrimarySeed(
+ 	}
+     return seed;
+ }
++// libtpms added begin
++SEED_COMPAT_LEVEL
++HierarchyGetPrimarySeedCompatLevel(
++				   TPMI_RH_HIERARCHY    hierarchy     // IN: hierarchy
++			           )
++{
++    switch(hierarchy)
++	{
++	  case TPM_RH_PLATFORM:
++	    return gp.PPSeedCompatLevel;
++	    break;
++	  case TPM_RH_OWNER:
++	    return gp.SPSeedCompatLevel;
++	    break;
++	  case TPM_RH_ENDORSEMENT:
++	    return gp.EPSeedCompatLevel;
++	    break;
++	  case TPM_RH_NULL:
++	    return SEED_COMPAT_LEVEL_LAST;
++	  default:
++	    FAIL(FATAL_ERROR_INTERNAL);
++	    break;
++	}
++}
++// libtpms added end
+ /* 8.3.3.5 HierarchyIsEnabled() */
+ /* This function checks to see if a hierarchy is enabled. */
+ /* NOTE: The TPM_RH_NULL hierarchy is always enabled. */
+diff --git a/src/tpm2/HierarchyCommands.c b/src/tpm2/HierarchyCommands.c
+index 6627e99..776d2e2 100644
+--- a/src/tpm2/HierarchyCommands.c
++++ b/src/tpm2/HierarchyCommands.c
+@@ -291,6 +291,7 @@ TPM2_ChangePPS(
+     // Internal Data Update
+     // Reset platform hierarchy seed from RNG
+     CryptRandomGenerate(sizeof(gp.PPSeed.t.buffer), gp.PPSeed.t.buffer);
++    gp.PPSeedCompatLevel = SEED_COMPAT_LEVEL_LAST; // libtpms added
+     // Create a new phProof value from RNG to prevent the saved platform
+     // hierarchy contexts being loaded
+     CryptRandomGenerate(sizeof(gp.phProof.t.buffer), gp.phProof.t.buffer);
+@@ -303,6 +304,7 @@ TPM2_ChangePPS(
+     NvFlushHierarchy(TPM_RH_PLATFORM);
+     // Save hierarchy changes to NV
+     NV_SYNC_PERSISTENT(PPSeed);
++    NV_SYNC_PERSISTENT(PPSeedCompatLevel); // libtpms added
+     NV_SYNC_PERSISTENT(phProof);
+     // Re-initialize PCR policies
+ #if defined NUM_POLICY_PCR_GROUP && NUM_POLICY_PCR_GROUP > 0
+@@ -335,6 +337,7 @@ TPM2_ChangeEPS(
+     // Internal Data Update
+     // Reset endorsement hierarchy seed from RNG
+     CryptRandomGenerate(sizeof(gp.EPSeed.t.buffer), gp.EPSeed.t.buffer);
++    gp.EPSeedCompatLevel = SEED_COMPAT_LEVEL_LAST; // libtpms added
+     // Create new ehProof value from RNG
+     CryptRandomGenerate(sizeof(gp.ehProof.t.buffer), gp.ehProof.t.buffer);
+     // Enable endorsement hierarchy
+@@ -352,6 +355,7 @@ TPM2_ChangeEPS(
+     NvFlushHierarchy(TPM_RH_ENDORSEMENT);
+     // Save hierarchy changes to NV
+     NV_SYNC_PERSISTENT(EPSeed);
++    NV_SYNC_PERSISTENT(EPSeedCompatLevel); // libtpms added
+     NV_SYNC_PERSISTENT(ehProof);
+     NV_SYNC_PERSISTENT(endorsementAuth);
+     NV_SYNC_PERSISTENT(endorsementAlg);
+@@ -382,6 +386,7 @@ TPM2_Clear(
+     // Internal Data Update
+     // Reset storage hierarchy seed from RNG
+     CryptRandomGenerate(sizeof(gp.SPSeed.t.buffer), gp.SPSeed.t.buffer);
++    gp.SPSeedCompatLevel = SEED_COMPAT_LEVEL_LAST; // libtpms added
+     // Create new shProof and ehProof value from RNG
+     CryptRandomGenerate(sizeof(gp.shProof.t.buffer), gp.shProof.t.buffer);
+     CryptRandomGenerate(sizeof(gp.ehProof.t.buffer), gp.ehProof.t.buffer);
+diff --git a/src/tpm2/Hierarchy_fp.h b/src/tpm2/Hierarchy_fp.h
+index 51c79c0..d6e0a89 100644
+--- a/src/tpm2/Hierarchy_fp.h
++++ b/src/tpm2/Hierarchy_fp.h
+@@ -78,6 +78,12 @@ TPM2B_SEED *
+ HierarchyGetPrimarySeed(
+ 			TPMI_RH_HIERARCHY    hierarchy      // IN: hierarchy
+ 			);
++// libtpms added begin
++SEED_COMPAT_LEVEL
++HierarchyGetPrimarySeedCompatLevel(
++                                   TPMI_RH_HIERARCHY    hierarchy     // IN: hierarchy
++                                   );
++// libtpms added end
+ BOOL
+ HierarchyIsEnabled(
+ 		   TPMI_RH_HIERARCHY    hierarchy      // IN: hierarchy
+diff --git a/src/tpm2/NVMarshal.c b/src/tpm2/NVMarshal.c
+index ec94ebf..653ef1a 100644
+--- a/src/tpm2/NVMarshal.c
++++ b/src/tpm2/NVMarshal.c
+@@ -242,6 +242,29 @@ BOOL_Unmarshal(BOOL *boolean, BYTE **buffer, INT32 *size)
+     return rc;
+ }
+ 
++static UINT16
++SEED_COMPAT_LEVEL_Marshal(SEED_COMPAT_LEVEL *source,
++                          BYTE **buffer, INT32 *size)
++{
++    return UINT8_Marshal((UINT8 *)source, buffer, size);
++}
++
++static TPM_RC
++SEED_COMPAT_LEVEL_Unmarshal(SEED_COMPAT_LEVEL *source,
++                            BYTE **buffer, INT32 *size,
++                            const char *name)
++{
++    TPM_RC rc;
++
++    rc = UINT8_Unmarshal((UINT8 *)source, buffer, size);
++    if (rc == TPM_RC_SUCCESS && *source > SEED_COMPAT_LEVEL_LAST) {
++        TPMLIB_LogTPM2Error("%s compatLevel '%u' higher than supported '%u'\n",
++                            name, *source, SEED_COMPAT_LEVEL_LAST);
++        rc = TPM_RC_BAD_VERSION;
++    }
++    return rc;
++}
++
+ static int
+ TPM2B_Cmp(const TPM2B *t1, const TPM2B *t2)
+ {
+@@ -3690,7 +3713,7 @@ skip_future_versions:
+ }
+ 
+ #define PERSISTENT_DATA_MAGIC   0x12213443
+-#define PERSISTENT_DATA_VERSION 3
++#define PERSISTENT_DATA_VERSION 4
+ 
+ static UINT16
+ PERSISTENT_DATA_Marshal(PERSISTENT_DATA *data, BYTE **buffer, INT32 *size)
+@@ -3703,7 +3726,7 @@ PERSISTENT_DATA_Marshal(PERSISTENT_DATA *data, BYTE **buffer, INT32 *size)
+ 
+     written = NV_HEADER_Marshal(buffer, size,
+                                 PERSISTENT_DATA_VERSION,
+-                                PERSISTENT_DATA_MAGIC, 1);
++                                PERSISTENT_DATA_MAGIC, 4);
+     written += BOOL_Marshal(&data->disableClear, buffer, size);
+     written += TPM_ALG_ID_Marshal(&data->ownerAlg, buffer, size);
+     written += TPM_ALG_ID_Marshal(&data->endorsementAlg, buffer, size);
+@@ -3775,9 +3798,18 @@ PERSISTENT_DATA_Marshal(PERSISTENT_DATA *data, BYTE **buffer, INT32 *size)
+     /* there's a 'shadow' pcrAllocated as well */
+     written += TPML_PCR_SELECTION_Marshal(&gp.pcrAllocated, buffer, size);
+ 
++    written += BLOCK_SKIP_WRITE_PUSH(TRUE, buffer, size);
++    written += SEED_COMPAT_LEVEL_Marshal(&data->EPSeedCompatLevel,
++                                         buffer, size);
++    written += SEED_COMPAT_LEVEL_Marshal(&data->SPSeedCompatLevel,
++                                         buffer, size);
++    written += SEED_COMPAT_LEVEL_Marshal(&data->PPSeedCompatLevel,
++                                         buffer, size);
++
+     written += BLOCK_SKIP_WRITE_PUSH(TRUE, buffer, size);
+     /* future versions append below this line */
+ 
++    BLOCK_SKIP_WRITE_POP(size);
+     BLOCK_SKIP_WRITE_POP(size);
+     BLOCK_SKIP_WRITE_POP(size);
+ 
+@@ -3963,6 +3995,11 @@ skip_num_policy_pcr_group:
+ #endif
+     }
+ 
++    /* default values before conditional block */
++    data->EPSeedCompatLevel = SEED_COMPAT_LEVEL_ORIGINAL;
++    data->SPSeedCompatLevel = SEED_COMPAT_LEVEL_ORIGINAL;
++    data->PPSeedCompatLevel = SEED_COMPAT_LEVEL_ORIGINAL;
++
+     /* version 2 starts having indicator for next versions that we can skip;
+        this allows us to downgrade state */
+     if (rc == TPM_RC_SUCCESS && hdr.version >= 2) {
+@@ -3970,8 +4007,24 @@ skip_num_policy_pcr_group:
+                         "Volatile State", "version 3 or later");
+         rc = TPML_PCR_SELECTION_Unmarshal(&shadow.pcrAllocated, buffer, size);
+ 
+-        BLOCK_SKIP_READ(skip_future_versions, FALSE, buffer, size,
++        BLOCK_SKIP_READ(skip_future_versions, hdr.version >= 4, buffer, size,
+                         "PERSISTENT DATA", "version 4 or later");
++
++        if (rc == TPM_RC_SUCCESS) {
++            rc = SEED_COMPAT_LEVEL_Unmarshal(&data->EPSeedCompatLevel,
++                                             buffer, size, "EPSeed");
++        }
++        if (rc == TPM_RC_SUCCESS) {
++            rc = SEED_COMPAT_LEVEL_Unmarshal(&data->SPSeedCompatLevel,
++                                             buffer, size, "SPSeed");
++        }
++        if (rc == TPM_RC_SUCCESS) {
++            rc = SEED_COMPAT_LEVEL_Unmarshal(&data->PPSeedCompatLevel,
++                                             buffer, size, "PPSeed");
++        }
++
++        BLOCK_SKIP_READ(skip_future_versions, FALSE, buffer, size,
++                        "PERSISTENT DATA", "version 5 or later");
+         /* future versions nest-append here */
+     }
+ 
+-- 
+2.21.0.windows.1
+

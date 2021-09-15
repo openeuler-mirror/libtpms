@@ -6,7 +6,7 @@
 
 %define name      libtpms
 %define versionx  0.7.3
-%define release   3
+%define release   4
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,7 +19,7 @@
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
 Version:        %{versionx}
-Release:        3
+Release:        4
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
@@ -27,6 +27,13 @@ Source0:        %{url}/archive/%{gitcommit}/%{name}-%{gitshortcommit}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
 
 Patch0: 0001-tpm2-CryptSym-fix-AES-output-IV.patch
+Patch1: tpm2-Add-SEED_COMPAT_LEVEL-to-seeds-in.patch
+Patch2: tpm2-Add-SEED_COMPAT_LEVEL-to-nullSeed-to-track-comp.patch
+Patch3: tpm2-Add-SEED_COMPAT_LEVEL-to-DRBG-state.patch
+Patch4: tpm2-rev155-Add-new-RsaAdjustPrimeCandidate-code.patch
+Patch5: tpm2-Introduce-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FI.patch
+Patch6: tpm2-Pass-SEED_COMPAT_LEVEL-to-CryptAdjustPrimeCandi.patch
+Patch7: tpm2-Activate-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel
@@ -119,6 +126,12 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Tue May 11 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-4
+-TYPE: CVE
+-ID:NA
+-SUG:NA
+-DESC:fix CVE-2021-3505
+
 * Mon Apr 5 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-3
 - Type:CVE
 - ID:NA

@@ -1,0 +1,52 @@
+From eb36e429ebe6d0dd7e1ca07013245ab766eec02d Mon Sep 17 00:00:00 2001
+From: jiangfangjie 00559066 <jiangfangjie@huawei.com>
+Date: Tue, 11 May 2021 14:17:54 +0800
+Subject: [PATCH 7/7] tpm2: Activate SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX
+
+---
+ src/tpm2/BackwardsCompatibility.h    | 2 +-
+ src/tpm2/crypto/openssl/CryptPrime.c | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/tpm2/BackwardsCompatibility.h b/src/tpm2/BackwardsCompatibility.h
+index ded6936..6d33b60 100644
+--- a/src/tpm2/BackwardsCompatibility.h
++++ b/src/tpm2/BackwardsCompatibility.h
+@@ -43,7 +43,7 @@ typedef UINT8 SEED_COMPAT_LEVEL;
+ enum {
+     SEED_COMPAT_LEVEL_ORIGINAL = 0,   /* original TPM 2 code up to rev155 */
+     SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX = 1, /* RsaAdjustPrimeCandidate was fixed */
+-    SEED_COMPAT_LEVEL_LAST = SEED_COMPAT_LEVEL_ORIGINAL
++    SEED_COMPAT_LEVEL_LAST = SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX
+ };
+ 
+ #endif /* BACKWARDS_COMPATIBILITY_H */
+diff --git a/src/tpm2/crypto/openssl/CryptPrime.c b/src/tpm2/crypto/openssl/CryptPrime.c
+index 2e8601c..9ffacc2 100644
+--- a/src/tpm2/crypto/openssl/CryptPrime.c
++++ b/src/tpm2/crypto/openssl/CryptPrime.c
+@@ -369,8 +369,8 @@ RsaAdjustPrimeCandidate(
+     case SEED_COMPAT_LEVEL_ORIGINAL:
+         RsaAdjustPrimeCandidate_PreRev155(prime);
+         break;
+-    /* case SEED_COMPAT_LEVEL_LAST: */
+-    case SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX:
++    case SEED_COMPAT_LEVEL_LAST:
++    /* case SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX: */
+         RsaAdjustPrimeCandidate_New(prime);
+         break;
+     default:
+@@ -409,8 +409,8 @@ BnGeneratePrimeForRSA(
+ 		if (g_inFailureMode)
+ 		    return;
+ 		break;
+-	    /* case SEED_COMPAT_LEVEL_LAST: */
+-            case SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX:
++	    case SEED_COMPAT_LEVEL_LAST:
++            /* case SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX: */
+ 		if(!BnGetRandomBits(prime, bits, rand))                              // new
+ 		    return;
+                 break;
+-- 
+2.21.0.windows.1
+

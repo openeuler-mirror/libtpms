@@ -6,7 +6,7 @@
 
 %define name      libtpms
 %define versionx  0.7.3
-%define release   5
+%define release   6
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,7 +19,7 @@
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
 Version:        %{versionx}
-Release:        4
+Release:        %{release}
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
@@ -34,6 +34,8 @@ Patch4: tpm2-rev155-Add-new-RsaAdjustPrimeCandidate-code.patch
 Patch5: tpm2-Introduce-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FI.patch
 Patch6: tpm2-Pass-SEED_COMPAT_LEVEL-to-CryptAdjustPrimeCandi.patch
 Patch7: tpm2-Activate-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX.patch
+Patch8: tpm2-Initialize-a-whole-OBJECT-before-using-it.patch
+Patch9: tpm2-NVMarshal-Handle-index-orderly-RAM-without-0-si.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel
@@ -126,8 +128,14 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
-* Mon Feb 14 2022 imxcc <xingchaochao@huawei.com> - 0.7.3-5
+* Mon Feb 14 2022 imxcc <xingchaochao@huawei.com> - 0.7.3-6
 - fix bare word "debug" in spec
+
+* Wed Nov 10 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-5
+-TYPE: CVE
+-ID:NA
+-ID:NA
+-DESC: fix CVE-2021-3746
 
 * Tue May 11 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-4
 -TYPE: CVE
@@ -142,7 +150,7 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 - DESC: fix CVE-2021-3446
 
 * Mon Sep 14 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-2
-- update spec file including source0 and update source file 
+- update spec file including source0 and update source file
 
 * Fri Aug 21 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-1
 - Package init

@@ -35,7 +35,8 @@ Patch5: tpm2-Introduce-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FI.patch
 Patch6: tpm2-Pass-SEED_COMPAT_LEVEL-to-CryptAdjustPrimeCandi.patch
 Patch7: tpm2-Activate-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX.patch
 Patch8: tpm2-Initialize-a-whole-OBJECT-before-using-it.patch
-Patch9: tpm2-NVMarshal-Handle-index-orderly-RAM-without-0-si.patch
+Patch9: tpm2-Fix-issue-with-misaligned-address-when-marshall.patch
+Patch10: tpm2-NVMarshal-Handle-index-orderly-RAM-without-0-si.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel

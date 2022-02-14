@@ -6,7 +6,7 @@
 
 %define name      libtpms
 %define versionx  0.7.3
-%define release   4
+%define release   5
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -92,11 +92,11 @@ Libtpms header files and documentation.
 %define _with_openssl --with-openssl
 %endif
 
-%if %{build_type} == debug
+%if "%{build_type}" == "debug"
 %define _enable_debug --enable-debug
 %endif
 
-%if %{build_type} == debug
+%if "%{build_type}" == "debug"
 CFLAGS=-O0
 %endif
 ./autogen.sh \
@@ -126,6 +126,9 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Mon Feb 14 2022 imxcc <xingchaochao@huawei.com> - 0.7.3-5
+- fix bare word "debug" in spec
+
 * Tue May 11 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-4
 -TYPE: CVE
 -ID:NA

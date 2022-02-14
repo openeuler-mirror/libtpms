@@ -6,7 +6,7 @@
 
 %define name      libtpms
 %define versionx  0.7.3
-%define release   5
+%define release   6
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -19,7 +19,7 @@
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
 Version:        %{versionx}
-Release:        5
+Release:        %{release}
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
@@ -95,11 +95,11 @@ Libtpms header files and documentation.
 %define _with_openssl --with-openssl
 %endif
 
-%if %{build_type} == debug
+%if "%{build_type}" == "debug"
 %define _enable_debug --enable-debug
 %endif
 
-%if %{build_type} == debug
+%if "%{build_type}" == "debug"
 CFLAGS=-O0
 %endif
 ./autogen.sh \
@@ -129,11 +129,14 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Mon Feb 14 2022 imxcc <xingchaochao@huawei.com> - 0.7.3-6
+- fix bare word "debug" in spec
+
 * Wed Nov 10 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-5
 -TYPE: CVE
 -ID:NA
 -ID:NA
-_DESC: fix CVE-2021-3746
+-DESC: fix CVE-2021-3746
 
 * Tue May 11 2021 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-4
 -TYPE: CVE
@@ -148,7 +151,7 @@ _DESC: fix CVE-2021-3746
 - DESC: fix CVE-2021-3446
 
 * Mon Sep 14 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-2
-- update spec file including source0 and update source file 
+- update spec file including source0 and update source file
 
 * Fri Aug 21 2020 jiangfangjie <jiangfangjie@huawei.com> - 0.7.3-1
 - Package init

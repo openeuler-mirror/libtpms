@@ -6,7 +6,7 @@
 
 %define name      libtpms
 %define versionx  0.7.3
-%define release   6
+%define release   7
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -37,6 +37,9 @@ Patch7: tpm2-Activate-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX.patch
 Patch8: tpm2-Initialize-a-whole-OBJECT-before-using-it.patch
 Patch9: tpm2-Fix-issue-with-misaligned-address-when-marshall.patch
 Patch10: tpm2-NVMarshal-Handle-index-orderly-RAM-without-0-si.patch
+Patch11: tpm2-Reset-TPM2B-buffer-sizes-after-test-fails-for-v.patch
+Patch12: tpm2-Add-maxSize-parameter-to-TPM2B_Marshal-for-sani.patch
+Patch13: tpm2-Restore-original-value-if-unmarsalled-value-was.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel
@@ -129,6 +132,12 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Wed May 18 2022 yezengruan <yezengruan@huawei.com> - 0.7.3-7
+- tpm2: Reset TPM2B buffer sizes after test fails for valid buffer size
+- tpm2: Add maxSize parameter to TPM2B_Marshal for sanity checks
+- tpm2: Restore original value if unmarsalled value was illegal
+- fix CVE-2021-3623
+
 * Mon Feb 14 2022 imxcc <xingchaochao@huawei.com> - 0.7.3-6
 - fix bare word "debug" in spec
 

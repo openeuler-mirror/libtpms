@@ -26,7 +26,7 @@ Url:            http://github.com/stefanberger/libtpms
 Source0:        %{url}/archive/%{gitcommit}/%{name}-%{gitshortcommit}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
 
-Patch0: 0001-tpm2-CryptSym-fix-AES-output-IV.patch
+Patch0: tpm2-CryptSym-fix-AES-output-IV.patch
 Patch1: tpm2-Add-SEED_COMPAT_LEVEL-to-seeds-in.patch
 Patch2: tpm2-Add-SEED_COMPAT_LEVEL-to-nullSeed-to-track-comp.patch
 Patch3: tpm2-Add-SEED_COMPAT_LEVEL-to-DRBG-state.patch

@@ -1,0 +1,34 @@
+From ea62fd9679f8c6fc5e79471b33cfbd8227bfed72 Mon Sep 17 00:00:00 2001
+From: Stefan Berger <stefanb@linux.vnet.ibm.com>
+Date: Thu, 22 Jul 2021 21:23:58 -0400
+Subject: [PATCH] tpm2: Initialize a whole OBJECT before using it
+
+Initialize a whole OBJECT before using it. This is necessary since
+an OBJECT may also be used as a HASH_OBJECT via the ANY_OBJECT
+union and that HASH_OBJECT can leave bad size inidicators in TPM2B
+buffer in the OBJECT. To get rid of this problem we reset the whole
+OBJECT to 0 before using it. This is as if the memory for the
+OBJECT was just initialized.
+
+Signed-off-by: Stefan Berger <stefanb@linux.ibm.com>
+---
+ src/tpm2/Object.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/tpm2/Object.c b/src/tpm2/Object.c
+index ab50348..967105f 100644
+--- a/src/tpm2/Object.c
++++ b/src/tpm2/Object.c
+@@ -284,7 +284,8 @@ FindEmptyObjectSlot(
+ 		    if(handle)
+ 			*handle = i + TRANSIENT_FIRST;
+ 		    // Initialize the object attributes
+-		    MemorySet(&object->attributes, 0, sizeof(OBJECT_ATTRIBUTES));
++		    // MemorySet(&object->attributes, 0, sizeof(OBJECT_ATTRIBUTES));
++		    MemorySet(object, 0, sizeof(*object)); // libtpms added: Initialize the whole object
+ 		    return object;
+ 		}
+ 	}
+-- 
+2.21.0.windows.1
+

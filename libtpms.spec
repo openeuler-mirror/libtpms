@@ -1,12 +1,8 @@
 # --- libtpm rpm-spec ---
-%global gitdate     20200710
-%global gitcommit   1d392d466a14234b2c0751ed6c22491836691166
-%global gitshortcommit  %(c=%{gitcommit}; echo ${c:0:7})
-
 
 %define name      libtpms
-%define versionx  0.7.3
-%define release   7
+%define version   0.9.5
+%define release   1
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -18,28 +14,13 @@
 
 Summary: Library providing Trusted Platform Module (TPM) functionality
 Name:           %{name}
-Version:        %{versionx}
+Version:        %{version}
 Release:        %{release}
 License:        BSD
 Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
-Source0:        %{url}/archive/%{gitcommit}/%{name}-%{gitshortcommit}.tar.gz
+Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
-
-Patch0: tpm2-CryptSym-fix-AES-output-IV.patch
-Patch1: tpm2-Add-SEED_COMPAT_LEVEL-to-seeds-in.patch
-Patch2: tpm2-Add-SEED_COMPAT_LEVEL-to-nullSeed-to-track-comp.patch
-Patch3: tpm2-Add-SEED_COMPAT_LEVEL-to-DRBG-state.patch
-Patch4: tpm2-rev155-Add-new-RsaAdjustPrimeCandidate-code.patch
-Patch5: tpm2-Introduce-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FI.patch
-Patch6: tpm2-Pass-SEED_COMPAT_LEVEL-to-CryptAdjustPrimeCandi.patch
-Patch7: tpm2-Activate-SEED_COMPAT_LEVEL_RSA_PRIME_ADJUST_FIX.patch
-Patch8: tpm2-Initialize-a-whole-OBJECT-before-using-it.patch
-Patch9: tpm2-Fix-issue-with-misaligned-address-when-marshall.patch
-Patch10: tpm2-NVMarshal-Handle-index-orderly-RAM-without-0-si.patch
-Patch11: tpm2-Reset-TPM2B-buffer-sizes-after-test-fails-for-v.patch
-Patch12: tpm2-Add-maxSize-parameter-to-TPM2B_Marshal-for-sani.patch
-Patch13: tpm2-Restore-original-value-if-unmarsalled-value-was.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel
@@ -89,7 +70,7 @@ Libtpms header files and documentation.
 %attr(644, root, root) %{_mandir}/man3/*
 
 %prep
-%setup -n %{name}-%{gitcommit}
+%setup -n %{name}-%{version}
 %autopatch -p1
 
 %build
@@ -132,6 +113,9 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Fri Feb 03 2023 yezengruan <yezengruan@huawei.com> - 0.9.5-1
+- update to version 0.9.5
+
 * Wed May 18 2022 yezengruan <yezengruan@huawei.com> - 0.7.3-7
 - tpm2: Reset TPM2B buffer sizes after test fails for valid buffer size
 - tpm2: Add maxSize parameter to TPM2B_Marshal for sanity checks

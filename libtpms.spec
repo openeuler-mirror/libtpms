@@ -2,7 +2,7 @@
 
 %define name      libtpms
 %define version   0.9.5
-%define release   1
+%define release   2
 
 # Valid crypto subsystems are 'freebl' and 'openssl'
 %if "%{?crypto_subsystem}" == ""
@@ -21,6 +21,8 @@ Group:          Development/Libraries
 Url:            http://github.com/stefanberger/libtpms
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Provides:       libtpms-%{crypto_subsystem} = %{version}-%{release}
+
+Patch0: 0001-tpm2-Check-size-of-buffer-before-accessing-it-CVE-20.patch
 
 %if "%{crypto_subsystem}" == "openssl"
 BuildRequires:  openssl-devel
@@ -113,6 +115,9 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/libtpms.la
 %postun -p /sbin/ldconfig
 
 %changelog
+* Tue Mar 07 2023 jiangfangjie <jiangfangjie@huawei.com> - 0.9.5-2
+- fix CVE-2023--1018 and CVE-2023-1017
+
 * Fri Feb 03 2023 yezengruan <yezengruan@huawei.com> - 0.9.5-1
 - update to version 0.9.5
 
